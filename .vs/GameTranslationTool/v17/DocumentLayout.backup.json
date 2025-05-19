@@ -1,20 +1,7 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "C:\\Users\\Admin\\source\\repos\\GameTranslationTool\\",
-  "Documents": [
-    {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Admin\\source\\repos\\GameTranslationTool\\src\\GameTranslationTool.ConsoleTest\\GameTranslationTool.ConsoleTest.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\GameTranslationTool.ConsoleTest\\GameTranslationTool.ConsoleTest.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Admin\\source\\repos\\GameTranslationTool\\src\\GameTranslationTool\\GameTranslationTool.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\GameTranslationTool\\GameTranslationTool.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Admin\\source\\repos\\GameTranslationTool\\src\\GameTranslationTool\\MainWindow.xaml||{FA3CD31E-987B-443A-9B81-186104E8DAC1}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\GameTranslationTool\\MainWindow.xaml||{FA3CD31E-987B-443A-9B81-186104E8DAC1}"
-    }
-  ],
+  "Documents": [],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
@@ -22,47 +9,8 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": -1,
           "Children": [
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "GameTranslationTool.ConsoleTest.csproj",
-              "DocumentMoniker": "C:\\Users\\Admin\\source\\repos\\GameTranslationTool\\src\\GameTranslationTool.ConsoleTest\\GameTranslationTool.ConsoleTest.csproj",
-              "RelativeDocumentMoniker": "src\\GameTranslationTool.ConsoleTest\\GameTranslationTool.ConsoleTest.csproj",
-              "ToolTip": "C:\\Users\\Admin\\source\\repos\\GameTranslationTool\\src\\GameTranslationTool.ConsoleTest\\GameTranslationTool.ConsoleTest.csproj",
-              "RelativeToolTip": "src\\GameTranslationTool.ConsoleTest\\GameTranslationTool.ConsoleTest.csproj",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAAkAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
-              "WhenOpened": "2025-05-19T04:27:26.866Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "GameTranslationTool.csproj",
-              "DocumentMoniker": "C:\\Users\\Admin\\source\\repos\\GameTranslationTool\\src\\GameTranslationTool\\GameTranslationTool.csproj",
-              "RelativeDocumentMoniker": "src\\GameTranslationTool\\GameTranslationTool.csproj",
-              "ToolTip": "C:\\Users\\Admin\\source\\repos\\GameTranslationTool\\src\\GameTranslationTool\\GameTranslationTool.csproj",
-              "RelativeToolTip": "src\\GameTranslationTool\\GameTranslationTool.csproj",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
-              "WhenOpened": "2025-05-19T04:25:03.254Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "MainWindow.xaml",
-              "DocumentMoniker": "C:\\Users\\Admin\\source\\repos\\GameTranslationTool\\src\\GameTranslationTool\\MainWindow.xaml",
-              "RelativeDocumentMoniker": "src\\GameTranslationTool\\MainWindow.xaml",
-              "ToolTip": "C:\\Users\\Admin\\source\\repos\\GameTranslationTool\\src\\GameTranslationTool\\MainWindow.xaml",
-              "RelativeToolTip": "src\\GameTranslationTool\\MainWindow.xaml",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-05-19T04:24:08.905Z",
-              "EditorCaption": ""
-            },
             {
               "$type": "Bookmark",
               "Name": "ST:1:0:{e8034f19-ab72-4f06-83fd-f6832b41aa63}"
@@ -74,6 +22,10 @@
             {
               "$type": "Bookmark",
               "Name": "ST:1:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{34e76e81-ee4a-11d0-ae2e-00a0c90fffc3}"
             }
           ]
         }

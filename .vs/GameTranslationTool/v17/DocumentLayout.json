@@ -1,7 +1,12 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "C:\\Users\\Admin\\source\\repos\\GameTranslationTool\\",
-  "Documents": [],
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A96475AA-858B-4ED1-9331-9F4CBDF61645}|src\\GameTranslationTool.ConsoleTest\\GameTranslationTool.ConsoleTest.csproj|c:\\users\\admin\\source\\repos\\gametranslationtool\\src\\gametranslationtool.consoletest\\gametranslationtool.consoletest.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{A96475AA-858B-4ED1-9331-9F4CBDF61645}|src\\GameTranslationTool.ConsoleTest\\GameTranslationTool.ConsoleTest.csproj|solutionrelative:src\\gametranslationtool.consoletest\\gametranslationtool.consoletest.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
@@ -9,8 +14,21 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": -1,
+          "SelectedChildIndex": 0,
           "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "GameTranslationTool.ConsoleTest",
+              "DocumentMoniker": "C:\\Users\\Admin\\source\\repos\\GameTranslationTool\\src\\GameTranslationTool.ConsoleTest\\GameTranslationTool.ConsoleTest.csproj",
+              "RelativeDocumentMoniker": "src\\GameTranslationTool.ConsoleTest\\GameTranslationTool.ConsoleTest.csproj",
+              "ToolTip": "C:\\Users\\Admin\\source\\repos\\GameTranslationTool\\src\\GameTranslationTool.ConsoleTest\\GameTranslationTool.ConsoleTest.csproj",
+              "RelativeToolTip": "src\\GameTranslationTool.ConsoleTest\\GameTranslationTool.ConsoleTest.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAA6AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-05-19T05:33:56.145Z",
+              "EditorCaption": ""
+            },
             {
               "$type": "Bookmark",
               "Name": "ST:1:0:{e8034f19-ab72-4f06-83fd-f6832b41aa63}"
@@ -22,6 +40,10 @@
             {
               "$type": "Bookmark",
               "Name": "ST:1:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{34e76e81-ee4a-11d0-ae2e-00a0c90fffc3}"
             }
           ]
         }

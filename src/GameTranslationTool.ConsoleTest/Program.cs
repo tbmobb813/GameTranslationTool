@@ -4,6 +4,7 @@ using DiscUtils.Iso9660;            // For CDReader
 using GameTranslationTool.ISO;      // IsoExtractor, IsoRepacker
 using GameTranslationTool.Translation; // TranslationFileScanner, FakeTranslator
 using Serilog;
+using GameTranslationTool;
 
 namespace GameTranslationTool.ConsoleTest
 {
