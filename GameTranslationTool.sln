@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.13.35931.197
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameTranslationTool", "GameTranslationTool\GameTranslationTool.csproj", "{BE543890-C8AE-4BA0-9961-9B3689210469}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameTranslationTool", "src\GameTranslationTool\GameTranslationTool.csproj", "{BE543890-C8AE-4BA0-9961-9B3689210469}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameTranslationTool.ConsoleTest", "GameTranslationTool.ConsoleTest\GameTranslationTool.ConsoleTest.csproj", "{A96475AA-858B-4ED1-9331-9F4CBDF61645}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameTranslationTool.ConsoleTest", "src\GameTranslationTool.ConsoleTest\GameTranslationTool.ConsoleTest.csproj", "{A96475AA-858B-4ED1-9331-9F4CBDF61645}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

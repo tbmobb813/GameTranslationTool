@@ -1,4 +1,0 @@
-2025-05-14 08:45:49.640 -04:00 [INF] === ISO Extractor Test ===
-2025-05-14 08:45:50.084 -04:00 [ERR] Error: Both ISO path and output folder must be provided.
-2025-05-14 08:48:15.629 -04:00 [INF] === ISO Extractor Test ===
-2025-05-14 08:48:15.823 -04:00 [ERR] Error: Both ISO path and output folder must be provided.

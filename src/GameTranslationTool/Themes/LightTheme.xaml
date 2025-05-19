@@ -1,0 +1,63 @@
+﻿<ResourceDictionary
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Window & text -->
+    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="White"/>
+    <SolidColorBrush x:Key="ForegroundBrush"       Color="Black"/>
+
+    <!-- Accent colors -->
+    <SolidColorBrush x:Key="PrimaryBrush"           Color="#007ACC"/>
+    <SolidColorBrush x:Key="AccentBrush"            Color="#E74856"/>
+
+    <!-- Button style -->
+    <Style TargetType="Button">
+        <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ForegroundBrush}"/>
+        <Setter Property="Padding"    Value="6,4"/>
+        <Setter Property="Margin"     Value="2"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Cursor"     Value="Hand"/>
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <ScaleTransform ScaleX="1" ScaleY="1"/>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect BlurRadius="5" Opacity="0.2"/>
+            </Setter.Value>
+        </Setter>
+
+        <!-- hover animation -->
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Trigger.EnterActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation
+                Storyboard.TargetProperty="RenderTransform.ScaleX"
+                To="1.05" Duration="0:0:0.1"/>
+                            <DoubleAnimation
+                Storyboard.TargetProperty="RenderTransform.ScaleY"
+                To="1.05" Duration="0:0:0.1"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation
+                Storyboard.TargetProperty="RenderTransform.ScaleX"
+                To="1" Duration="0:0:0.1"/>
+                            <DoubleAnimation
+                Storyboard.TargetProperty="RenderTransform.ScaleY"
+                To="1" Duration="0:0:0.1"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.ExitActions>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+</ResourceDictionary>

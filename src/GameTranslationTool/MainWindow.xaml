@@ -1,0 +1,357 @@
+﻿<Window x:Class="GameTranslationTool.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:GameTranslationTool"
+        mc:Ignorable="d"
+        Title="Game Translation Tool" Height="600" Width="900"
+        Background="{DynamicResource WindowBackroundBrush}"
+        Foreground="{DynamicResource ForegroundBrush}">
+
+    <Window.Resources>
+        <local:HasErrorConverter x:Key="HasErrorConverter"/>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TabControl Grid.Row="0">
+            <Grid>
+                <Grid.Resources>
+                    <Storyboard x:Key="FadeIn">
+                        <DoubleAnimation Storyboard.TargetName="TabContent"
+                                       Storyboard.TargetProperty="Opacity"
+                                       From="0" To="1" Duration="0:0:2"/>
+                    </Storyboard>
+                </Grid.Resources>
+
+                <ContentControl x:Name="TabContent"
+                                Content="{Binding SelectedContent, ElementName=TabControl}"
+                                Opacity="1"/>
+                <TabControl x:Name="TabControl"
+                            SelectionChanged="TabControl_SelectionChanged">
+                    
+                </TabControl>
+            </Grid>
+
+            <!-- Project Tab -->
+            <TabItem Header="Project">
+                <StackPanel Margin="10">
+                    <TextBlock Text="ISO File:" />
+                    <StackPanel Orientation="Horizontal" Margin="0,5">
+                        <TextBox x:Name="TextIsoPath" Width="500" />
+                        <Button Click="BtnBrowseIso_Click" Margin="5,0">Browse...</Button>
+                    </StackPanel>
+
+                    <TextBlock Text="Extract To Folder:" Margin="0,10,0,0" />
+                    <StackPanel Orientation="Horizontal" Margin="0,5">
+                        <TextBox x:Name="TextExtractPath" Width="500" />
+                        <Button Click="BtnBrowseExtract_Click" Margin="5,0">Browse...</Button>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                        <Button x:Name="BtnExtractIso" Width="100" Click="BtnExtractIso_Click">Extract ISO</Button>
+                        <Button x:Name="BtnRepackIso" Width="100" Margin="10,0" Click="BtnRepackIso_Click">Repack ISO</Button>
+                    </StackPanel>
+
+                    <TextBlock Text="Log:" Margin="0,20,0,0" />
+                    <TextBox x:Name="TextProjectLog" Height="100" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+                </StackPanel>
+            </TabItem>
+
+            <!-- Strings Tab -->
+            <TabItem Header="Strings">
+                <StackPanel Margin="10">
+                    
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <TextBlock Text="From:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <ComboBox x:Name="ComboSourceLang" 
+                                  Width="100" 
+                                  Margin="0,0,15,0"/>
+                        
+                        <TextBlock Text="To (one or more):" 
+                                   VerticalAlignment="Top" 
+                                   Margin="0,0,5,0"/>
+                        <ListBox x:Name="ListTargetLangs" 
+                                 Width="100" 
+                                 Height="20" 
+                                 SelectionMode="Extended" 
+                                 Margin="0,0,15,0">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox Content="{Binding}" 
+                                              IsChecked="{Binding 
+                                                RelativeSource={RelativeSource AncestorType=ListBoxItem},
+                                                Path=IsSelected,
+                                                Mode=TwoWay}"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <TextBlock Text="Provider:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <ComboBox x:Name="ComboApiProvider" 
+                                  Width="150"/>
+                    </StackPanel>
+                    
+                    <StackPanel x:Name="MsRegionPanel" Orientation="Horizontal" Margin="0,0,0,10" Visibility="Collapsed">
+                        <TextBlock Text="Region (e.g., eastus):" VerticalAlignment="Center" Margin="0,0,5,0" />
+                        <TextBox x:Name="TextRegion" Width="120" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <!-- Load File Button with Icon -->
+                        <Button x:Name="BtnLoadStrings" 
+                                Width="110" 
+                                Click="BtnLoadStrings_Click">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- U+E8B7: Folder Open -->
+                                <TextBlock FontFamily="Segoe MDL2 Assets" 
+                                           Text="&#xE8B7;" 
+                                           Margin="0,0,5,0" FontSize="14" />
+                                <TextBlock Text="Load File" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Auto Translate with Icon -->
+                        <Button x:Name="BtnAutoTranslate" 
+                                Width="120" 
+                                Margin="10,0,0,0" 
+                                Click="BtnAutoTranslate_Click" 
+                                IsEnabled="False">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- U+E774: Globe -->
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE774;" Margin="0,0,5,0" FontSize="14" />
+                                <TextBlock Text="Auto Translate" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="BtnBatchTranslate"
+                                Width="120"
+                                Margin="10,0,0,0"
+                                Click="BtnBatchTranslate_Click"
+                                Content="Batch Translate"/>
+                        <ProgressBar x:Name="BatchProgressBar"
+                                     Height="20" Minimum="0" Value="0"
+                                     Margin="0,5,0,5" Visibility="Collapsed" />
+                        <TextBlock x:Name="BatchStatusLabel"
+                                   VerticalAlignment="Center"
+                                      Margin="0,0,5,0"
+                                   Visibility="Collapsed"
+                                   Text=""/>
+
+                        <!-- Cancel -->
+                        <Button x:Name="BtnCancelTranslate" Width="80" Margin="10,0,0,0" Click="BtnCancelTranslate_Click" IsEnabled="False">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- U+E711: Cancel -->
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE711;" Margin="0,0,5,0" FontSize="14" />
+                                <TextBlock Text="Cancel" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Save Translations -->
+                        <Button x:Name="BtnSaveStrings" Width="125" Margin="10,0,0,0" Click="BtnSaveStrings_Click" IsEnabled="False">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- U+E74E: Save -->
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE74E;" Margin="0,0,5,0" FontSize="14" />
+                                <TextBlock Text="Save Translations" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Export CSV -->
+                        <Button x:Name="BtnExportCsv" Width="100" Margin="10,0,0,0" Click="BtnExportCsv_Click" IsEnabled="False">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- U+E8F4: Export -->
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8F4;" Margin="0,0,5,0" FontSize="14" />
+                                <TextBlock Text="Export CSV" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Data Grid -->
+                    <DataGrid x:Name="DataGridStrings" AutoGenerateColumns="False" CanUserAddRows="False"
+                              AlternationCount="2" RowBackground="White" AlternatingRowBackground="#F7F7F7"
+                              Margin="0,0,0,10">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Original" Binding="{Binding Original}" Width="*" />
+                            <DataGridTextColumn Header="Translated" Binding="{Binding Translated}" Width="*" />
+                            <DataGridTextColumn Header="Error" Binding="{Binding Error}" Width="*" />
+                        </DataGrid.Columns>
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Setter Property="Background" Value="White" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Error, Converter={StaticResource HasErrorConverter}}" Value="True">
+                                        <Setter Property="Background" Value="#FFF8E1E1" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+                    </DataGrid>
+
+                    <ProgressBar x:Name="TranslationProgressBar" Height="20" Minimum="0" Value="0"
+                                 Margin="0,5,0,5" Visibility="Collapsed" />
+                    <TextBlock x:Name="TranslationStatusLabel" FontWeight="Bold"
+                               HorizontalAlignment="Center" Visibility="Collapsed"
+                               Margin="0,0,0,10" Text=""/>
+                    <!-- Percentage Gauge -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,5,0,10">
+                        <TextBlock Text="Completion:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <ProgressBar x:Name="CompletionGauge"
+                                     Width="200" Height="10"
+                                     Minimum="0" Maximum="100"
+                                     Value="0"/>
+                        <TextBlock x:Name="CompletionLabel"
+                                   VerticalAlignment="Center"
+                                   Margin="5,0,0,0"
+                                   FontWeight="Bold"
+                                   Text="0%"/>
+                    </StackPanel>
+                    <!-- Smart wrap setting -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,5,0,10">
+                        <TextBlock Text=" Max line length:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                          <TextBox x:Name="TextMaxLineLength" 
+                                   Width="40" 
+                                   Text="40" 
+                                   ToolTip="Number of characters per line before auto-break"/>
+                    </StackPanel>
+                </StackPanel>
+            </TabItem>
+            <!-- Translation Tab -->
+            <TabItem Header="Translation">
+                <StackPanel Margin="10">
+                    <TextBlock Text="Extracted Folder:" />
+                    <StackPanel Orientation="Horizontal" Margin="0,5">
+                        <TextBox x:Name="TextExtractedPath" Width="500" Margin="0,0,10,0" />
+                        <Button Click="BtnBrowseExtracted_Click">Browse</Button>
+                    </StackPanel>
+
+                    <TextBlock Text="Translated Folder:" Margin="0,10,0,0" />
+                    <StackPanel Orientation="Horizontal" Margin="0,5">
+                        <TextBox x:Name="TextTranslatedPath" Width="500" Margin="0,0,10,0" />
+                        <Button Click="BtnBrowseTranslated_Click">Browse</Button>
+                    </StackPanel>
+
+                    <Button x:Name="BtnTranslate" Width="120" Margin="0,20,0,0" Click="BtnTranslate_Click">Translate All</Button>
+
+                    <TextBlock Text="Status:" Margin="0,20,0,0" />
+                    <TextBox x:Name="TextLog" Height="100" VerticalScrollBarVisibility="Auto"
+                             TextWrapping="Wrap" IsReadOnly="True" />
+                </StackPanel>
+            </TabItem>
+
+            <!-- API Settings Tab -->
+            <TabItem Header="API Settings">
+                <StackPanel Margin="10">
+                    <TextBlock Text="Microsoft API Key:" />
+                    <TextBox x:Name="TextApiKey" Width="400" />
+
+                    <TextBlock Text="Google API Key:" Margin="0,10,0,0" />
+                    <TextBox x:Name="TextGoogleApiKey" Width="400" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button x:Name="BtnResetMicrosoftKey" Width="150" Click="BtnResetMicrosoftKey_Click">Reset Microsoft Key</Button>
+                        <Button x:Name="BtnResetGoogleKey" Width="150" Margin="10,0,0,0" Click="BtnResetGoogleKey_Click">Reset Google Key</Button>
+                        <Button x:Name="BtnSaveApiSettings" Width="150                " Margin="10,0,0,0" Click="BtnSaveApiSettings_Click">Save API Settings</Button>
+                        <Button x:Name="BtnTestApiKey" Width="150                " Margin="10,0,0,0" Click="BtnTestApiKey_Click">Test API Key</Button>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button x:Name="BtnTestTranslate" Width="200" Click="BtnTestTranslate_Click">Send Test Translation</Button>
+                        <Button x:Name="BtnClearCache" Width="200" Margin="10,0,0,0" Click="BtnClearCache_Click">Clear Cache</Button>
+                    </StackPanel>
+                </StackPanel>
+            </TabItem>
+
+            <!-- Placeholder Tabs -->
+            <TabItem Header="Dialogs">
+                <DockPanel Margin="10">
+                    <!-- Toolbar -->
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,10">
+                        <Button x:Name="BtnLoadDialogs"
+                                Width="100"
+                                Click="BtnLoadDialogs_Click">Load Dialogs</Button>
+                        <Button x:Name="BtnAddPhrase"
+                                Width="100"
+                                Margin="10,0,0,0"
+                                Click="BtnAddPhrase_Click">
+                            Add Phrase
+                        </Button>
+                        <Button x:Name="BtnRemovePhrase"
+              Width="100"
+              Margin="10,0,0,0"
+              Click="BtnRemovePhrase_Click"
+              IsEnabled="False">
+                            Remove Phrase
+                        </Button>
+                        <Button x:Name="BtnSaveDialogs"
+              Width="100"
+              Margin="10,0,0,0"
+              Click="BtnSaveDialogs_Click"
+              IsEnabled="False">
+                            Save Dialogs
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Dialog entries grid -->
+                    <DataGrid x:Name="DataGridDialogs"
+                            AutoGenerateColumns="False"
+                            CanUserAddRows="False"
+                            SelectionMode="Single"
+                            DockPanel.Dock="Top"
+                            Height="300">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="100"/>
+                            <DataGridTextColumn Header="Text" Binding="{Binding Text}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+            
+            <TabItem Header="Debug">
+                <StackPanel Margin="10">
+                    <CheckBox x:Name="ChkEnableDebug"
+              Content="Enable Game Debug Mode"
+              Checked="ChkEnableDebug_Checked"
+              Unchecked="ChkEnableDebug_Unchecked"/>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBlock Text="Teleport to Level:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <ComboBox x:Name="ComboLevels" Width="150"/>
+                        <Button x:Name="BtnTeleport"
+              Content="Teleport"
+              Margin="10,0,0,0"
+              Click="BtnTeleport_Click"
+              IsEnabled="False"/>
+                    </StackPanel>
+
+                    <TextBlock Text="Debug Log:" Margin="0,20,0,0"/>
+                    <TextBox x:Name="TextDebugLog"
+             Height="200"
+             IsReadOnly="True"
+             VerticalScrollBarVisibility="Auto"
+             TextWrapping="Wrap"/>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+
+        <StatusBar Grid.Row="1" Padding="5,2">
+            <StatusBarItem>
+                <StackPanel Orientation="Horizontal">
+                    <!-- toggle between light & dark -->
+                <ToggleButton x:Name="ThemeToggle"
+                              Content="🌙"
+                              Checked="ThemeToggle_Checked"
+                              Unchecked="ThemeToggle_Unchecked"/>
+                <TextBlock x:Name="StatusBarText" 
+                           Text="Ready" 
+                           FontWeight="Bold" 
+                           Margin="10,0,0,0"/>
+                </StackPanel>
+            </StatusBarItem>
+        </StatusBar>
+    </Grid>
+</Window>
