@@ -30,6 +30,7 @@ namespace GameTranslationTool
         // ─── Services ────────────────────────────────────────────────
         private readonly ISettingsService _settingsService;
         private readonly ICacheService _cacheService;
+        private readonly RateLimiter _rateLimiter;
 
         // ─── Fields ──────────────────────────────────────────────────
         private readonly ObservableCollection<DialogEntry> _dialogEntries = [];
@@ -47,6 +48,7 @@ namespace GameTranslationTool
             // Initialize services
             _settingsService = new SettingsService();
             _cacheService = new CacheService();
+            _rateLimiter = new RateLimiter(maxRequestsPerMinute: 60);
 
             InitializeComponent();
 
@@ -364,6 +366,9 @@ namespace GameTranslationTool
                     {
                         token.ThrowIfCancellationRequested();
 
+                        // Rate limiting to prevent API quota exhaustion
+                        await _rateLimiter.WaitIfNeededAsync(token);
+
                         var ctx = new Context
                         {
                             ["text"] = entry.Original
@@ -630,28 +635,98 @@ namespace GameTranslationTool
 
         private void BtnExtractIso_Click(object sender, RoutedEventArgs e)
         {
+            var isoPath = TextIsoPath.Text.Trim();
+            var extractPath = TextExtractPath.Text.Trim();
+
+            // Validate inputs
+            if (!ValidationService.FileExists(isoPath))
+            {
+                ErrorHandler.ShowWarning("Please select a valid ISO file.");
+                return;
+            }
+
+            if (!ValidationService.IsValidDirectoryPath(extractPath))
+            {
+                ErrorHandler.ShowWarning("Please enter a valid extraction folder path.");
+                return;
+            }
+
             try
             {
-                IsoExtractor.ExtractIso(TextIsoPath.Text, TextExtractPath.Text, string.Empty);
-                TextProjectLog.AppendText("Extraction complete.\n");
+                BtnExtractIso.IsEnabled = false;
+                TextProjectLog.AppendText("Starting ISO extraction...\n");
+
+                IsoExtractor.ExtractIso(
+                    isoPath,
+                    extractPath,
+                    string.Empty,
+                    (current, total, file) =>
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            TextProjectLog.AppendText($"Extracting ({current}/{total}): {file}\n");
+                            TextProjectLog.ScrollToEnd();
+                        });
+                    });
+
+                TextProjectLog.AppendText("✅ Extraction complete!\n");
+                ErrorHandler.ShowInfo($"Successfully extracted ISO to:\n{extractPath}", "Extraction Complete");
             }
             catch (Exception ex)
             {
-                TextProjectLog.AppendText($"Error: {ex.Message}\n");
+                ErrorHandler.HandleFileError("extract", isoPath, ex);
+                TextProjectLog.AppendText($"❌ Error: {ex.Message}\n");
+            }
+            finally
+            {
+                BtnExtractIso.IsEnabled = true;
             }
         }
 
         private void BtnRepackIso_Click(object sender, RoutedEventArgs e)
         {
+            var extractPath = TextExtractPath.Text.Trim();
+
+            // Validate inputs
+            if (!ValidationService.DirectoryExists(extractPath))
+            {
+                ErrorHandler.ShowWarning("Please select a valid source folder.");
+                return;
+            }
+
             try
             {
-                var repacked = Path.Combine(TextExtractPath.Text, "Repacked.iso");
-                IsoRepacker.RepackIso(TextExtractPath.Text, repacked, "MYGAME");
-                TextProjectLog.AppendText($"Repacked: {repacked}\n");
+                BtnRepackIso.IsEnabled = false;
+                var repacked = Path.Combine(extractPath, "Repacked.iso");
+                TextProjectLog.AppendText("Starting ISO repacking...\n");
+
+                IsoRepacker.RepackIso(
+                    extractPath,
+                    repacked,
+                    "MYGAME",
+                    (current, total, file) =>
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (current % 50 == 0 || current == total)
+                            {
+                                TextProjectLog.AppendText($"Packing ({current}/{total})...\n");
+                                TextProjectLog.ScrollToEnd();
+                            }
+                        });
+                    });
+
+                TextProjectLog.AppendText($"✅ Repacked to: {repacked}\n");
+                ErrorHandler.ShowInfo($"Successfully repacked ISO to:\n{repacked}", "Repack Complete");
             }
             catch (Exception ex)
             {
-                TextProjectLog.AppendText($"Error: {ex.Message}\n");
+                ErrorHandler.HandleFileError("create", "ISO file", ex);
+                TextProjectLog.AppendText($"❌ Error: {ex.Message}\n");
+            }
+            finally
+            {
+                BtnRepackIso.IsEnabled = true;
             }
         }
 
