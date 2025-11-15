@@ -1,42 +1,48 @@
-﻿using System;
-using System.IO;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Serilog;
 using DiscUtils.Iso9660;
 using GameTranslationTool.Utils;
+using Serilog;
 
-namespace GameTranslationTool.ISO
+namespace GameTranslationTool.Services
 {
-    public static class IsoExtractor
+    /// <summary>
+    /// Service for extracting ISO disc images with path traversal protection
+    /// </summary>
+    public class IsoExtractorService : IIsoExtractor
     {
-        // Logger scoped to this class
-        private static readonly ILogger Log = Serilog.Log.ForContext(typeof(IsoExtractor));
+        private readonly IFileSystemService _fileSystem;
+        private readonly ILogger _logger;
 
-        /// <summary>
-        /// Progress callback for extraction operations
-        /// </summary>
-        public delegate void ProgressCallback(int current, int total, string currentFile);
+        public IsoExtractorService(IFileSystemService fileSystem, ILogger logger)
+        {
+            _fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        }
 
-        /// <summary>
-        /// Extracts an ISO to disk asynchronously with optional progress reporting and cancellation support
-        /// </summary>
-        public static async Task ExtractIsoAsync(
+        public async Task ExtractAsync(
             string isoPath,
             string outputFolder,
             string translatedFolder,
-            ProgressCallback? progressCallback = null,
+            IProgress<IsoProgress>? progress = null,
             CancellationToken cancellationToken = default)
         {
-            if (!File.Exists(isoPath))
+            if (!_fileSystem.FileExists(isoPath))
             {
-                Log.Error("ISO file not found: {Path}", isoPath);
+                _logger.Error("ISO file not found: {Path}", isoPath);
                 throw new FileNotFoundException($"ISO file not found: {isoPath}", isoPath);
             }
 
-            Log.Information("Starting ISO extraction from {Path}", isoPath);
+            if (!_fileSystem.DirectoryExists(outputFolder))
+            {
+                _fileSystem.CreateDirectory(outputFolder);
+            }
+
+            _logger.Information("Starting ISO extraction from {Path}", isoPath);
 
             await Task.Run(async () =>
             {
@@ -56,14 +62,14 @@ namespace GameTranslationTool.ISO
                     translatableFiles,
                     ref processedFiles,
                     totalFiles,
-                    progressCallback,
+                    progress,
                     cancellationToken);
 
-                Log.Information("Finished extracting {Count} files to {Folder}", processedFiles, outputFolder);
+                _logger.Information("Finished extracting {Count} files to {Folder}", processedFiles, outputFolder);
 
-                string logFilePath = Path.Combine(outputFolder, "TranslatableFiles.txt");
-                await File.WriteAllLinesAsync(logFilePath, translatableFiles, cancellationToken);
-                Log.Information("Wrote translatable file list to: {Path}", logFilePath);
+                string logFilePath = _fileSystem.SafeCombinePath(outputFolder, "TranslatableFiles.txt");
+                await _fileSystem.WriteAllLinesAsync(logFilePath, translatableFiles, cancellationToken);
+                _logger.Information("Wrote translatable file list to: {Path}", logFilePath);
 
                 try
                 {
@@ -73,36 +79,18 @@ namespace GameTranslationTool.ISO
                         Arguments = logFilePath,
                         UseShellExecute = true
                     });
-                    Log.Information("Opened TranslatableFiles.txt in Notepad.");
+                    _logger.Information("Opened TranslatableFiles.txt in Notepad.");
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning("Could not open log file in Notepad: {Message}", ex.Message);
+                    _logger.Warning("Could not open log file in Notepad: {Message}", ex.Message);
                 }
             }, cancellationToken);
         }
 
-        /// <summary>
-        /// Extracts an ISO to disk with optional progress reporting (synchronous version for backward compatibility)
-        /// </summary>
-        public static void ExtractIso(
-            string isoPath,
-            string outputFolder,
-            string translatedFolder,
-            ProgressCallback? progressCallback = null)
-        {
-            ExtractIsoAsync(isoPath, outputFolder, translatedFolder, progressCallback, CancellationToken.None)
-                .GetAwaiter()
-                .GetResult();
-        }
-
-        /// <summary>
-        /// Counts total files in the ISO for progress reporting
-        /// </summary>
-        private static int CountFiles(CDReader cdReader, string sourcePath)
+        private int CountFiles(CDReader cdReader, string sourcePath)
         {
             int count = 0;
-
             count += cdReader.GetFiles(sourcePath).Length;
 
             foreach (var dir in cdReader.GetDirectories(sourcePath))
@@ -113,10 +101,7 @@ namespace GameTranslationTool.ISO
             return count;
         }
 
-        /// <summary>
-        /// Recursively extracts files and logs those that are translatable (async version)
-        /// </summary>
-        private static async Task ExtractDirectoryAsync(
+        private async Task ExtractDirectoryAsync(
             CDReader cdReader,
             string sourcePath,
             string outputFolder,
@@ -124,7 +109,7 @@ namespace GameTranslationTool.ISO
             List<string> translatableFiles,
             ref int processedFiles,
             int totalFiles,
-            ProgressCallback? progressCallback,
+            IProgress<IsoProgress>? progress,
             CancellationToken cancellationToken)
         {
             foreach (var file in cdReader.GetFiles(sourcePath))
@@ -132,27 +117,43 @@ namespace GameTranslationTool.ISO
                 cancellationToken.ThrowIfCancellationRequested();
 
                 string relativePath = file.TrimStart('\\');
-                string destPath = Path.Combine(outputFolder, relativePath);
-                string? dir = Path.GetDirectoryName(destPath);
-                if (!string.IsNullOrEmpty(dir))
-                    Directory.CreateDirectory(dir);
+
+                // Use SafeCombinePath to prevent path traversal attacks
+                string destPath;
+                try
+                {
+                    destPath = _fileSystem.SafeCombinePath(outputFolder, relativePath);
+                }
+                catch (System.Security.SecurityException ex)
+                {
+                    _logger.Warning(ex, "Skipping file due to path traversal attempt: {File}", file);
+                    continue;
+                }
+
+                string? dir = _fileSystem.GetDirectoryName(destPath);
+                if (!string.IsNullOrEmpty(dir) && !_fileSystem.DirectoryExists(dir))
+                {
+                    _fileSystem.CreateDirectory(dir);
+                }
 
                 using var src = cdReader.OpenFile(file, FileMode.Open);
                 using var dst = File.Create(destPath);
                 await src.CopyToAsync(dst, cancellationToken);
 
                 processedFiles++;
-                progressCallback?.Invoke(processedFiles, totalFiles, relativePath);
+                progress?.Report(new IsoProgress
+                {
+                    Current = processedFiles,
+                    Total = totalFiles,
+                    CurrentFile = relativePath
+                });
 
-                Log.Debug("Extracted file: {Path}", destPath);
+                _logger.Debug("Extracted file: {Path}", destPath);
 
                 if (FileHelpers.IsTranslatableFile(destPath))
                 {
                     translatableFiles.Add(relativePath);
-                    Log.Information("Detected translatable file: {Path}", relativePath);
-
-                    // Note: Removed automatic translation - should be done manually
-                    // to avoid accidental translations during extraction
+                    _logger.Information("Detected translatable file: {Path}", relativePath);
                 }
             }
 
@@ -166,7 +167,7 @@ namespace GameTranslationTool.ISO
                     translatableFiles,
                     ref processedFiles,
                     totalFiles,
-                    progressCallback,
+                    progress,
                     cancellationToken);
             }
         }

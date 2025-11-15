@@ -56,9 +56,16 @@
                     <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
                         <Button x:Name="BtnExtractIso" Width="100" Click="BtnExtractIso_Click">Extract ISO</Button>
                         <Button x:Name="BtnRepackIso" Width="100" Margin="10,0" Click="BtnRepackIso_Click">Repack ISO</Button>
+                        <Button x:Name="BtnCancelIso" Width="100" Margin="10,0" Click="BtnCancelIso_Click" IsEnabled="False">Cancel</Button>
                     </StackPanel>
 
-                    <TextBlock Text="Log:" Margin="0,20,0,0" />
+                    <!-- Progress Indicator -->
+                    <StackPanel Margin="0,10,0,0">
+                        <ProgressBar x:Name="IsoProgressBar" Height="20" Minimum="0" Maximum="100" Value="0" Visibility="Collapsed" />
+                        <TextBlock x:Name="IsoProgressLabel" HorizontalAlignment="Center" Margin="0,5,0,0" FontWeight="Bold" Visibility="Collapsed" Text="0%" />
+                    </StackPanel>
+
+                    <TextBlock Text="Log:" Margin="0,10,0,0" />
                     <TextBox x:Name="TextProjectLog" Height="100" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
                 </StackPanel>
             </TabItem>

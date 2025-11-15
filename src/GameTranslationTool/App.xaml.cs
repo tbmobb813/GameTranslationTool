@@ -1,6 +1,9 @@
 ﻿using System;
 using System.IO;
 using System.Windows;
+using GameTranslationTool.Services;
+using GameTranslationTool.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using WpfMessageBox = System.Windows.MessageBox;
 
@@ -8,6 +11,8 @@ namespace GameTranslationTool
 {
     public partial class App : System.Windows.Application
     {
+        private IServiceProvider? _serviceProvider;
+
         protected override void OnStartup(StartupEventArgs e)
         {
             // First-chance handler for UI thread exceptions
@@ -48,11 +53,54 @@ namespace GameTranslationTool
                 .CreateLogger();
 
             Log.Information("Application started.");
+
+            // Configure Dependency Injection
+            var services = new ServiceCollection();
+            ConfigureServices(services);
+            _serviceProvider = services.BuildServiceProvider();
+
+            // Create and show MainWindow via DI
+            var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+            mainWindow.Show();
+        }
+
+        private void ConfigureServices(IServiceCollection services)
+        {
+            // Register Serilog logger
+            services.AddSingleton<ILogger>(Log.Logger);
+
+            // Register core services
+            services.AddSingleton<IFileSystemService, FileSystemService>();
+            services.AddSingleton<ISettingsService, SettingsService>();
+            services.AddSingleton<ICacheService, CacheService>();
+
+            // Register ISO services
+            services.AddSingleton<IIsoExtractor, IsoExtractorService>();
+            services.AddSingleton<IIsoRepacker, IsoRepackerService>();
+
+            // Register utility services
+            services.AddSingleton<RateLimiter>(sp => new RateLimiter(maxRequestsPerMinute: 60));
+
+            // Register ViewModels
+            services.AddSingleton<MainViewModel>();
+            services.AddSingleton<IsoViewModel>();
+
+            // Register MainWindow for DI
+            services.AddTransient<MainWindow>();
+
+            Log.Information("Dependency injection configured successfully");
         }
 
         protected override void OnExit(ExitEventArgs e)
         {
             Log.Information("Application exited.");
+
+            // Dispose service provider
+            if (_serviceProvider is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+
             Log.CloseAndFlush();
             base.OnExit(e);
         }
