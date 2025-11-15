@@ -11,7 +11,7 @@ namespace GameTranslationTool.Translation
     {
         private static readonly HttpClient _httpClient = new();
 
-        public static string Translate(string input, string fromLang = "en", string toLang = "es")
+        public static async Task<string> TranslateAsync(string input, string fromLang = "en", string toLang = "es")
         {
             try
             {
@@ -26,8 +26,8 @@ namespace GameTranslationTool.Translation
                 var json = JsonSerializer.Serialize(request);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = _httpClient.PostAsync("https://libretranslate.com/translate", content).Result;
-                var responseBody = response.Content.ReadAsStringAsync().Result;
+                var response = await _httpClient.PostAsync("https://libretranslate.com/translate", content);
+                var responseBody = await response.Content.ReadAsStringAsync();
 
                 var result = JsonSerializer.Deserialize<LibreResponse>(responseBody);
                 return result?.TranslatedText ?? input;

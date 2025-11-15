@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Threading.Tasks;
 using DiscUtils.Iso9660;            // For CDReader
 using GameTranslationTool.ISO;      // IsoExtractor, IsoRepacker
 using GameTranslationTool.Translation; // TranslationFileScanner, FakeTranslator
@@ -10,7 +11,7 @@ namespace GameTranslationTool.ConsoleTest
 {
     class Program
     {
-        static void Main()
+        static async Task Main()
         {
             // make sure our log folder exists
             Directory.CreateDirectory("logs");
@@ -79,7 +80,7 @@ namespace GameTranslationTool.ConsoleTest
                             var destPath = Path.Combine(translatedFolder, relative);
                             Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
 
-                            FakeTranslator.TranslateFile(file, destPath);
+                            await FakeTranslator.TranslateFileAsync(file, destPath);
                             Log.Information("Translated: {File}", relative);
                         }
                         Log.Information("Fake translation complete.");

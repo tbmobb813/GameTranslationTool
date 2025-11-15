@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace GameTranslationTool.Translation
 {
@@ -10,7 +11,7 @@ namespace GameTranslationTool.Translation
     {
         private static readonly HttpClient _httpClient = new();
 
-        public static string Translate(string input, string fromLang, string toLang, string apiKey, string endpoint)
+        public static async Task<string> TranslateAsync(string input, string fromLang, string toLang, string apiKey, string endpoint)
         {
             try
             {
@@ -30,12 +31,12 @@ namespace GameTranslationTool.Translation
                 request.Headers.Add("Ocp-Apim-Subscription-Key", apiKey);
                 request.Headers.Add("Ocp-Apim-Subscription-Region", "YOUR_REGION"); // Replace with your Azure region (e.g., "eastus")
 
-                var response = _httpClient.Send(request);
+                var response = await _httpClient.SendAsync(request);
 
                 System.Diagnostics.Debug.WriteLine($"Calling: {uri}");
                 System.Diagnostics.Debug.WriteLine($"Key: {apiKey}"); // Don't do this in production — only for debug!
 
-                var jsonResponse = response.Content.ReadAsStringAsync().Result;
+                var jsonResponse = await response.Content.ReadAsStringAsync();
 
                 System.Diagnostics.Debug.WriteLine($"Response: {jsonResponse}");
 

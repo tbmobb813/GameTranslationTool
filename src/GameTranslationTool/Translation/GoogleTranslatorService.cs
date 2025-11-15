@@ -10,12 +10,11 @@ namespace GameTranslationTool.Translation
     public class GoogleTranslatorService : ITranslator
     {
         private readonly string _apiKey;
-        private readonly HttpClient _client;
+        private static readonly HttpClient _client = new HttpClient();
 
         public GoogleTranslatorService(string apiKey)
         {
             _apiKey = apiKey;
-            _client = new HttpClient();
         }
 
         public async Task<string> TranslateAsync(string text, string fromLang, string toLang)
