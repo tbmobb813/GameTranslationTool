@@ -37,6 +37,7 @@ namespace GameTranslationTool
         private readonly ObservableCollection<TranslationEntry> _stringEntries = [];
         private string _lastLoadedFile = string.Empty;
         private CancellationTokenSource _cts;
+        private CancellationTokenSource _isoCts;
         private readonly AsyncRetryPolicy<string> _retryPolicy;
         private ITranslator _translationEngine;
         private TranslationSettings _settings;
@@ -259,8 +260,11 @@ namespace GameTranslationTool
         /// <summary>
         /// Wraps your _translationEngine.TranslateAsync call in the retry policy.
         /// </summary>
-        private Task<string> TranslateWithRetryAsync(string text, string fromLang, string toLang)
+        private async Task<string> TranslateWithRetryAsync(string text, string fromLang, string toLang)
         {
+            // Rate limiting to prevent API quota exhaustion
+            await _rateLimiter.WaitIfNeededAsync(CancellationToken.None);
+
             // capture the text in the Polly Context (for logging)
             var ctx = new Context
             {
@@ -268,7 +272,7 @@ namespace GameTranslationTool
             };
 
             // fire off your retry‐wrapped translate call
-            return _retryPolicy.ExecuteAsync(
+            return await _retryPolicy.ExecuteAsync(
                 // note: this delegate gets (Context, CancellationToken)
                 (pollyCtx, ct) => _translationEngine.TranslateAsync(text, fromLang, toLang),
                 ctx,
@@ -633,7 +637,7 @@ namespace GameTranslationTool
                 TextExtractPath.Text = fd.SelectedPath;
         }
 
-        private void BtnExtractIso_Click(object sender, RoutedEventArgs e)
+        private async void BtnExtractIso_Click(object sender, RoutedEventArgs e)
         {
             var isoPath = TextIsoPath.Text.Trim();
             var extractPath = TextExtractPath.Text.Trim();
@@ -651,12 +655,34 @@ namespace GameTranslationTool
                 return;
             }
 
+            // Check disk space
+            var isoSize = ValidationService.GetFileSize(isoPath);
+            if (!ValidationService.HasSufficientDiskSpace(extractPath, isoSize))
+            {
+                var available = ValidationService.FormatBytes(ValidationService.GetAvailableDiskSpace(extractPath));
+                var required = ValidationService.FormatBytes(isoSize);
+                ErrorHandler.ShowWarning(
+                    $"Insufficient disk space!\n\nRequired: ~{required}\nAvailable: {available}\n\nPlease free up space or choose a different location.",
+                    "Disk Space Error");
+                return;
+            }
+
             try
             {
+                // Prepare UI for operation
                 BtnExtractIso.IsEnabled = false;
+                BtnRepackIso.IsEnabled = false;
+                BtnCancelIso.IsEnabled = true;
+                IsoProgressBar.Visibility = Visibility.Visible;
+                IsoProgressLabel.Visibility = Visibility.Visible;
+                IsoProgressBar.Value = 0;
+                IsoProgressLabel.Text = "0%";
                 TextProjectLog.AppendText("Starting ISO extraction...\n");
 
-                IsoExtractor.ExtractIso(
+                _isoCts = new CancellationTokenSource();
+                var token = _isoCts.Token;
+
+                await IsoExtractor.ExtractIsoAsync(
                     isoPath,
                     extractPath,
                     string.Empty,
@@ -664,13 +690,26 @@ namespace GameTranslationTool
                     {
                         Dispatcher.Invoke(() =>
                         {
-                            TextProjectLog.AppendText($"Extracting ({current}/{total}): {file}\n");
-                            TextProjectLog.ScrollToEnd();
+                            var progress = (int)((double)current / total * 100);
+                            IsoProgressBar.Value = progress;
+                            IsoProgressLabel.Text = $"{progress}% ({current}/{total})";
+
+                            if (current % 10 == 0 || current == total)
+                            {
+                                TextProjectLog.AppendText($"Extracting ({current}/{total}): {file}\n");
+                                TextProjectLog.ScrollToEnd();
+                            }
                         });
-                    });
+                    },
+                    token);
 
                 TextProjectLog.AppendText("✅ Extraction complete!\n");
                 ErrorHandler.ShowInfo($"Successfully extracted ISO to:\n{extractPath}", "Extraction Complete");
+            }
+            catch (OperationCanceledException)
+            {
+                TextProjectLog.AppendText("⚠️ Extraction cancelled by user.\n");
+                Log.Information("ISO extraction cancelled by user");
             }
             catch (Exception ex)
             {
@@ -680,10 +719,16 @@ namespace GameTranslationTool
             finally
             {
                 BtnExtractIso.IsEnabled = true;
+                BtnRepackIso.IsEnabled = true;
+                BtnCancelIso.IsEnabled = false;
+                IsoProgressBar.Visibility = Visibility.Collapsed;
+                IsoProgressLabel.Visibility = Visibility.Collapsed;
+                _isoCts?.Dispose();
+                _isoCts = null;
             }
         }
 
-        private void BtnRepackIso_Click(object sender, RoutedEventArgs e)
+        private async void BtnRepackIso_Click(object sender, RoutedEventArgs e)
         {
             var extractPath = TextExtractPath.Text.Trim();
 
@@ -694,13 +739,36 @@ namespace GameTranslationTool
                 return;
             }
 
+            var repacked = Path.Combine(extractPath, "Repacked.iso");
+
+            // Check disk space
+            var folderSize = ValidationService.GetDirectorySize(extractPath);
+            if (!ValidationService.HasSufficientDiskSpace(extractPath, folderSize))
+            {
+                var available = ValidationService.FormatBytes(ValidationService.GetAvailableDiskSpace(extractPath));
+                var required = ValidationService.FormatBytes(folderSize);
+                ErrorHandler.ShowWarning(
+                    $"Insufficient disk space!\n\nRequired: ~{required}\nAvailable: {available}\n\nPlease free up space or choose a different location.",
+                    "Disk Space Error");
+                return;
+            }
+
             try
             {
+                // Prepare UI for operation
+                BtnExtractIso.IsEnabled = false;
                 BtnRepackIso.IsEnabled = false;
-                var repacked = Path.Combine(extractPath, "Repacked.iso");
+                BtnCancelIso.IsEnabled = true;
+                IsoProgressBar.Visibility = Visibility.Visible;
+                IsoProgressLabel.Visibility = Visibility.Visible;
+                IsoProgressBar.Value = 0;
+                IsoProgressLabel.Text = "0%";
                 TextProjectLog.AppendText("Starting ISO repacking...\n");
 
-                IsoRepacker.RepackIso(
+                _isoCts = new CancellationTokenSource();
+                var token = _isoCts.Token;
+
+                await IsoRepacker.RepackIsoAsync(
                     extractPath,
                     repacked,
                     "MYGAME",
@@ -708,16 +776,26 @@ namespace GameTranslationTool
                     {
                         Dispatcher.Invoke(() =>
                         {
+                            var progress = (int)((double)current / total * 100);
+                            IsoProgressBar.Value = progress;
+                            IsoProgressLabel.Text = $"{progress}% ({current}/{total})";
+
                             if (current % 50 == 0 || current == total)
                             {
                                 TextProjectLog.AppendText($"Packing ({current}/{total})...\n");
                                 TextProjectLog.ScrollToEnd();
                             }
                         });
-                    });
+                    },
+                    token);
 
                 TextProjectLog.AppendText($"✅ Repacked to: {repacked}\n");
                 ErrorHandler.ShowInfo($"Successfully repacked ISO to:\n{repacked}", "Repack Complete");
+            }
+            catch (OperationCanceledException)
+            {
+                TextProjectLog.AppendText("⚠️ Repacking cancelled by user.\n");
+                Log.Information("ISO repacking cancelled by user");
             }
             catch (Exception ex)
             {
@@ -726,8 +804,22 @@ namespace GameTranslationTool
             }
             finally
             {
+                BtnExtractIso.IsEnabled = true;
                 BtnRepackIso.IsEnabled = true;
+                BtnCancelIso.IsEnabled = false;
+                IsoProgressBar.Visibility = Visibility.Collapsed;
+                IsoProgressLabel.Visibility = Visibility.Collapsed;
+                _isoCts?.Dispose();
+                _isoCts = null;
             }
+        }
+
+        private void BtnCancelIso_Click(object sender, RoutedEventArgs e)
+        {
+            _isoCts?.Cancel();
+            BtnCancelIso.IsEnabled = false;
+            TextProjectLog.AppendText("Cancelling operation...\n");
+            Log.Information("User requested ISO operation cancellation");
         }
 
         // ─── Translation Tab Handlers ─────────────────────────────

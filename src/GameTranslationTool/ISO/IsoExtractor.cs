@@ -2,6 +2,8 @@
 using System.IO;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 using Serilog;
 using DiscUtils.Iso9660;
 using GameTranslationTool.Utils;
@@ -19,13 +21,14 @@ namespace GameTranslationTool.ISO
         public delegate void ProgressCallback(int current, int total, string currentFile);
 
         /// <summary>
-        /// Extracts an ISO to disk with optional progress reporting
+        /// Extracts an ISO to disk asynchronously with optional progress reporting and cancellation support
         /// </summary>
-        public static void ExtractIso(
+        public static async Task ExtractIsoAsync(
             string isoPath,
             string outputFolder,
             string translatedFolder,
-            ProgressCallback? progressCallback = null)
+            ProgressCallback? progressCallback = null,
+            CancellationToken cancellationToken = default)
         {
             if (!File.Exists(isoPath))
             {
@@ -35,44 +38,62 @@ namespace GameTranslationTool.ISO
 
             Log.Information("Starting ISO extraction from {Path}", isoPath);
 
-            using var isoStream = File.OpenRead(isoPath);
-            var cdReader = new CDReader(isoStream, true);
-
-            // First pass: count total files
-            int totalFiles = CountFiles(cdReader, @"\");
-            int processedFiles = 0;
-
-            var translatableFiles = new List<string>();
-            ExtractDirectory(
-                cdReader,
-                @"\",
-                outputFolder,
-                translatedFolder,
-                translatableFiles,
-                ref processedFiles,
-                totalFiles,
-                progressCallback);
-
-            Log.Information("Finished extracting {Count} files to {Folder}", processedFiles, outputFolder);
-
-            string logFilePath = Path.Combine(outputFolder, "TranslatableFiles.txt");
-            File.WriteAllLines(logFilePath, translatableFiles);
-            Log.Information("Wrote translatable file list to: {Path}", logFilePath);
-
-            try
+            await Task.Run(async () =>
             {
-                Process.Start(new ProcessStartInfo
+                using var isoStream = File.OpenRead(isoPath);
+                var cdReader = new CDReader(isoStream, true);
+
+                // First pass: count total files
+                int totalFiles = CountFiles(cdReader, @"\");
+                int processedFiles = 0;
+
+                var translatableFiles = new List<string>();
+                await ExtractDirectoryAsync(
+                    cdReader,
+                    @"\",
+                    outputFolder,
+                    translatedFolder,
+                    translatableFiles,
+                    ref processedFiles,
+                    totalFiles,
+                    progressCallback,
+                    cancellationToken);
+
+                Log.Information("Finished extracting {Count} files to {Folder}", processedFiles, outputFolder);
+
+                string logFilePath = Path.Combine(outputFolder, "TranslatableFiles.txt");
+                await File.WriteAllLinesAsync(logFilePath, translatableFiles, cancellationToken);
+                Log.Information("Wrote translatable file list to: {Path}", logFilePath);
+
+                try
                 {
-                    FileName = "notepad.exe",
-                    Arguments = logFilePath,
-                    UseShellExecute = true
-                });
-                Log.Information("Opened TranslatableFiles.txt in Notepad.");
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("Could not open log file in Notepad: {Message}", ex.Message);
-            }
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "notepad.exe",
+                        Arguments = logFilePath,
+                        UseShellExecute = true
+                    });
+                    Log.Information("Opened TranslatableFiles.txt in Notepad.");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning("Could not open log file in Notepad: {Message}", ex.Message);
+                }
+            }, cancellationToken);
+        }
+
+        /// <summary>
+        /// Extracts an ISO to disk with optional progress reporting (synchronous version for backward compatibility)
+        /// </summary>
+        public static void ExtractIso(
+            string isoPath,
+            string outputFolder,
+            string translatedFolder,
+            ProgressCallback? progressCallback = null)
+        {
+            ExtractIsoAsync(isoPath, outputFolder, translatedFolder, progressCallback, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
         }
 
         /// <summary>
@@ -93,9 +114,9 @@ namespace GameTranslationTool.ISO
         }
 
         /// <summary>
-        /// Recursively extracts files and logs those that are translatable
+        /// Recursively extracts files and logs those that are translatable (async version)
         /// </summary>
-        private static void ExtractDirectory(
+        private static async Task ExtractDirectoryAsync(
             CDReader cdReader,
             string sourcePath,
             string outputFolder,
@@ -103,10 +124,13 @@ namespace GameTranslationTool.ISO
             List<string> translatableFiles,
             ref int processedFiles,
             int totalFiles,
-            ProgressCallback? progressCallback)
+            ProgressCallback? progressCallback,
+            CancellationToken cancellationToken)
         {
             foreach (var file in cdReader.GetFiles(sourcePath))
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 string relativePath = file.TrimStart('\\');
                 string destPath = Path.Combine(outputFolder, relativePath);
                 string? dir = Path.GetDirectoryName(destPath);
@@ -115,7 +139,7 @@ namespace GameTranslationTool.ISO
 
                 using var src = cdReader.OpenFile(file, FileMode.Open);
                 using var dst = File.Create(destPath);
-                src.CopyTo(dst);
+                await src.CopyToAsync(dst, cancellationToken);
 
                 processedFiles++;
                 progressCallback?.Invoke(processedFiles, totalFiles, relativePath);
@@ -134,7 +158,7 @@ namespace GameTranslationTool.ISO
 
             foreach (var dir in cdReader.GetDirectories(sourcePath))
             {
-                ExtractDirectory(
+                await ExtractDirectoryAsync(
                     cdReader,
                     dir,
                     outputFolder,
@@ -142,7 +166,8 @@ namespace GameTranslationTool.ISO
                     translatableFiles,
                     ref processedFiles,
                     totalFiles,
-                    progressCallback);
+                    progressCallback,
+                    cancellationToken);
             }
         }
     }
