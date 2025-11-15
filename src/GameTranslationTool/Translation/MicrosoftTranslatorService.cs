@@ -11,15 +11,12 @@ namespace GameTranslationTool.Translation
     {
         private readonly string _apiKey;
         private readonly string _region;
-        private readonly HttpClient _client;
+        private static readonly HttpClient _client = new HttpClient();
 
         public MicrosoftTranslatorService(string apiKey, string region)
         {
             _apiKey = apiKey;
             _region = region;
-            _client = new HttpClient();
-            _client.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", _apiKey);
-            _client.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Region", _region);
         }
 
         public async Task<string> TranslateAsync(string text, string fromLang, string toLang)
@@ -30,8 +27,12 @@ namespace GameTranslationTool.Translation
                 var url = $"{endpoint}translate?api-version=3.0&from={fromLang}&to={toLang}";
                 var body = new[] { new { Text = text } };
 
-                var response = await _client.PostAsync(url,
-                    new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"));
+                using var request = new HttpRequestMessage(HttpMethod.Post, url);
+                request.Headers.Add("Ocp-Apim-Subscription-Key", _apiKey);
+                request.Headers.Add("Ocp-Apim-Subscription-Region", _region);
+                request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+
+                var response = await _client.SendAsync(request);
                 response.EnsureSuccessStatusCode();
 
                 var json = await response.Content.ReadAsStringAsync();

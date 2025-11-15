@@ -1,19 +1,18 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Animation;
+using GameTranslationTool.Constants;
 using GameTranslationTool.ISO;
+using GameTranslationTool.Models;
+using GameTranslationTool.Services;
 using GameTranslationTool.Translation;
 using GameTranslationTool.Utils;
 using Polly;
@@ -28,30 +27,34 @@ namespace GameTranslationTool
 {
     public partial class MainWindow : Window
     {
-        // ─── Fields ──────────────────────────────────────────────────
+        // ─── Services ────────────────────────────────────────────────
+        private readonly ISettingsService _settingsService;
+        private readonly ICacheService _cacheService;
+        private readonly RateLimiter _rateLimiter;
 
-        // For the Dialogs tab
+        // ─── Fields ──────────────────────────────────────────────────
         private readonly ObservableCollection<DialogEntry> _dialogEntries = [];
+        private readonly ObservableCollection<TranslationEntry> _stringEntries = [];
         private string _lastLoadedFile = string.Empty;
         private CancellationTokenSource _cts;
         private readonly AsyncRetryPolicy<string> _retryPolicy;
         private ITranslator _translationEngine;
-        private readonly string _settingsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "translator_settings.json");
         private TranslationSettings _settings;
-        private readonly Dictionary<string, string> _translationCache = [];
-        private readonly ObservableCollection<TranslationEntry> _stringEntries = [];
-        private readonly string _cacheFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "translation_cache.json");
-        private static readonly string[] SupportedLanguages = ["en", "es", "fr", "de", "ja"];
 
         // ─── Constructor ────────────────────────────────────────────
 
         public MainWindow()
         {
+            // Initialize services
+            _settingsService = new SettingsService();
+            _cacheService = new CacheService();
+            _rateLimiter = new RateLimiter(maxRequestsPerMinute: 60);
+
             InitializeComponent();
 
-            // 1️⃣ Load settings & cache
-            LoadSettings();
-            LoadTranslationCache();
+            // 1️⃣ Load settings & cache using services
+            _settings = _settingsService.LoadSettings();
+            _cacheService.LoadCache();
 
             // 2️⃣ Configure retry policy
             _retryPolicy = Policy<string>
@@ -68,30 +71,40 @@ namespace GameTranslationTool
 
             // 3️⃣ Populate & wire provider ComboBox
             ComboApiProvider.Items.Clear();
-            ComboApiProvider.ItemsSource = new[] { "Microsoft Translator", "Google Translate" };
+            ComboApiProvider.ItemsSource = new[] {
+                TranslationProvider.MicrosoftTranslator.ToDisplayName(),
+                TranslationProvider.GoogleTranslate.ToDisplayName()
+            };
             ComboApiProvider.SelectedIndex = 1;
             ComboApiProvider.SelectionChanged += ComboApiProvider_SelectionChanged;
 
             // 4️⃣ Populate language ComboBoxes
-            ComboSourceLang.ItemsSource = SupportedLanguages;
-            ListTargetLangs.ItemsSource = SupportedLanguages;
+            ComboSourceLang.ItemsSource = Languages.Supported;
+            ListTargetLangs.ItemsSource = Languages.Supported;
             ComboSourceLang.SelectedIndex = 0;
             ListTargetLangs.SelectedIndex = 1;
 
-            // 5️⃣ Bind DataGrid
+            // 5️⃣ Bind DataGrids
             DataGridStrings.ItemsSource = _stringEntries;
+            DataGridDialogs.ItemsSource = _dialogEntries;
 
             // 6️⃣ Initial translator & UI setup
+            LoadApiKeysToUI();
             SetupTranslator();
             UpdateRegionPanelVisibility();
 
             // 7️⃣ Set up DataGrid for Dialogs
-            DataGridDialogs.ItemsSource = _dialogEntries;
             DataGridDialogs.SelectionChanged += (s, e) =>
             {
                 BtnRemovePhrase.IsEnabled = DataGridDialogs.SelectedItem != null;
             };
+        }
 
+        private void LoadApiKeysToUI()
+        {
+            TextApiKey.Text = SecureVault.LoadMicrosoftKey() ?? string.Empty;
+            TextRegion.Text = _settings.Region;
+            TextGoogleApiKey.Text = SecureVault.LoadGoogleKey() ?? _settings.GoogleApiKey;
         }
 
         //--- API Settings Tab –-------------------------------------------
@@ -112,20 +125,36 @@ namespace GameTranslationTool
 
         private void BtnSaveApiSettings_Click(object sender, RoutedEventArgs e)
         {
-            _settings.Region = TextRegion.Text.Trim();
-            _settings.GoogleApiKey = TextGoogleApiKey.Text.Trim();
-            File.WriteAllText(_settingsPath,
-                JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true }));
-            SecureVault.SaveMicrosoftKey(TextApiKey.Text.Trim());
-            SecureVault.SaveGoogleKey(TextGoogleApiKey.Text.Trim());
+            // Validate inputs
+            var region = TextRegion.Text.Trim();
+            var googleKey = TextGoogleApiKey.Text.Trim();
+            var msKey = TextApiKey.Text.Trim();
+
+            if (string.IsNullOrWhiteSpace(region) || !ValidationService.IsValidRegion(region))
+            {
+                WpfMessageBox.Show("Please enter a valid Azure region (e.g., 'eastus')",
+                    "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Update settings
+            _settings.Region = region;
+            _settings.GoogleApiKey = googleKey;
+
+            // Save to secure vault and settings file
+            _settingsService.SaveSettings(_settings);
+            SecureVault.SaveMicrosoftKey(msKey);
+            SecureVault.SaveGoogleKey(googleKey);
+
             SetupTranslator();
             TextLog.AppendText("API settings saved.\n");
+            Log.Information("API settings saved successfully");
         }
 
         private async void BtnTestApiKey_Click(object sender, RoutedEventArgs e)
         {
             var provider = ComboApiProvider.SelectedItem as string;
-            if (provider == "Google Translate")
+            if (provider == TranslationProvider.GoogleTranslate.ToDisplayName())
             {
                 if (string.IsNullOrWhiteSpace(TextGoogleApiKey.Text))
                 {
@@ -170,12 +199,9 @@ namespace GameTranslationTool
 
         private void BtnClearCache_Click(object sender, RoutedEventArgs e)
         {
-            _translationCache.Clear();
-            if (File.Exists(_cacheFilePath)) File.Delete(_cacheFilePath);
-            Log.Information("Translation cache cleared.");
-
+            _cacheService.ClearCache();
             StatusBarText.Text = "Cache cleared";
-
+            Log.Information("Translation cache cleared");
         }
 
         private async void BtnTestTranslate_Click(object sender, RoutedEventArgs e)
@@ -226,62 +252,7 @@ namespace GameTranslationTool
         }
 
         // ─── Settings & Cache ────────────────────────────────────────
-
-        private void LoadSettings()
-        {
-            if (File.Exists(_settingsPath))
-            {
-                try
-                {
-                    var json = File.ReadAllText(_settingsPath);
-                    _settings = JsonSerializer.Deserialize<TranslationSettings>(json)
-                                ?? new TranslationSettings();
-                }
-                catch
-                {
-                    _settings = new TranslationSettings();
-                }
-            }
-            else
-            {
-                _settings = new TranslationSettings();
-            }
-
-            TextApiKey.Text = SecureVault.LoadMicrosoftKey() ?? string.Empty;
-            TextRegion.Text = _settings.Region;
-            TextGoogleApiKey.Text = SecureVault.LoadGoogleKey() ?? _settings.GoogleApiKey;
-        }
-
-        private void LoadTranslationCache()
-        {
-            if (!File.Exists(_cacheFilePath)) return;
-            try
-            {
-                var json = File.ReadAllText(_cacheFilePath);
-                var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-                if (dict != null)
-                    foreach (var kv in dict)
-                        _translationCache[kv.Key] = kv.Value;
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("Failed to load translation cache: {Message}", ex.Message);
-            }
-        }
-
-        private void SaveTranslationCache()
-        {
-            try
-            {
-                var json = JsonSerializer.Serialize(_translationCache,
-                    new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(_cacheFilePath, json);
-            }
-            catch (Exception ex)
-            {
-                Log.Error("Failed to save translation cache: {Message}", ex.Message);
-            }
-        }
+        // Note: Settings and cache are now managed by SettingsService and CacheService
 
         // ─── Translator Setup ────────────────────────────────────────
 
@@ -309,7 +280,7 @@ namespace GameTranslationTool
         private void SetupTranslator()
         {
             var provider = ComboApiProvider.SelectedItem as string;
-            if (provider == "Google Translate" &&
+            if (provider == TranslationProvider.GoogleTranslate.ToDisplayName() &&
                 !string.IsNullOrWhiteSpace(TextGoogleApiKey.Text))
             {
                 _translationEngine = new GoogleTranslatorService(TextGoogleApiKey.Text.Trim());
@@ -326,7 +297,7 @@ namespace GameTranslationTool
         {
             var provider = ComboApiProvider.SelectedItem as string;
             MsRegionPanel.Visibility =
-                provider == "Microsoft Translator"
+                provider == TranslationProvider.MicrosoftTranslator.ToDisplayName()
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         }
@@ -352,7 +323,8 @@ namespace GameTranslationTool
             foreach (var line in File.ReadAllLines(_lastLoadedFile))
             {
                 var entry = new TranslationEntry { Original = line };
-                if (_translationCache.TryGetValue(line, out var cached))
+                var cached = _cacheService.GetCachedTranslation(line);
+                if (cached != null)
                     entry.Translated = cached;
                 _stringEntries.Add(entry);
             }
@@ -394,6 +366,9 @@ namespace GameTranslationTool
                     {
                         token.ThrowIfCancellationRequested();
 
+                        // Rate limiting to prevent API quota exhaustion
+                        await _rateLimiter.WaitIfNeededAsync(token);
+
                         var ctx = new Context
                         {
                             ["text"] = entry.Original
@@ -425,7 +400,7 @@ namespace GameTranslationTool
                                 if (int.TryParse(TextMaxLineLength.Text, out var maxLen) && maxLen > 0)
                                     entry.Translated = SmartLineBreaker.InsertLineBreaks(entry.Translated, maxLen);
 
-                                _translationCache[entry.Original] = entry.Translated;
+                                _cacheService.CacheTranslation(entry.Original, entry.Translated);
                             }
                         }
                         else
@@ -449,7 +424,7 @@ namespace GameTranslationTool
                     }
 
                     TranslationStatusLabel.Text = "✅ All strings processed.";
-                    SaveTranslationCache();
+                    _cacheService.SaveCache();
                 }
                 catch (OperationCanceledException)
                 {
@@ -660,28 +635,98 @@ namespace GameTranslationTool
 
         private void BtnExtractIso_Click(object sender, RoutedEventArgs e)
         {
+            var isoPath = TextIsoPath.Text.Trim();
+            var extractPath = TextExtractPath.Text.Trim();
+
+            // Validate inputs
+            if (!ValidationService.FileExists(isoPath))
+            {
+                ErrorHandler.ShowWarning("Please select a valid ISO file.");
+                return;
+            }
+
+            if (!ValidationService.IsValidDirectoryPath(extractPath))
+            {
+                ErrorHandler.ShowWarning("Please enter a valid extraction folder path.");
+                return;
+            }
+
             try
             {
-                IsoExtractor.ExtractIso(TextIsoPath.Text, TextExtractPath.Text, string.Empty);
-                TextProjectLog.AppendText("Extraction complete.\n");
+                BtnExtractIso.IsEnabled = false;
+                TextProjectLog.AppendText("Starting ISO extraction...\n");
+
+                IsoExtractor.ExtractIso(
+                    isoPath,
+                    extractPath,
+                    string.Empty,
+                    (current, total, file) =>
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            TextProjectLog.AppendText($"Extracting ({current}/{total}): {file}\n");
+                            TextProjectLog.ScrollToEnd();
+                        });
+                    });
+
+                TextProjectLog.AppendText("✅ Extraction complete!\n");
+                ErrorHandler.ShowInfo($"Successfully extracted ISO to:\n{extractPath}", "Extraction Complete");
             }
             catch (Exception ex)
             {
-                TextProjectLog.AppendText($"Error: {ex.Message}\n");
+                ErrorHandler.HandleFileError("extract", isoPath, ex);
+                TextProjectLog.AppendText($"❌ Error: {ex.Message}\n");
+            }
+            finally
+            {
+                BtnExtractIso.IsEnabled = true;
             }
         }
 
         private void BtnRepackIso_Click(object sender, RoutedEventArgs e)
         {
+            var extractPath = TextExtractPath.Text.Trim();
+
+            // Validate inputs
+            if (!ValidationService.DirectoryExists(extractPath))
+            {
+                ErrorHandler.ShowWarning("Please select a valid source folder.");
+                return;
+            }
+
             try
             {
-                var repacked = Path.Combine(TextExtractPath.Text, "Repacked.iso");
-                IsoRepacker.RepackIso(TextExtractPath.Text, repacked, "MYGAME");
-                TextProjectLog.AppendText($"Repacked: {repacked}\n");
+                BtnRepackIso.IsEnabled = false;
+                var repacked = Path.Combine(extractPath, "Repacked.iso");
+                TextProjectLog.AppendText("Starting ISO repacking...\n");
+
+                IsoRepacker.RepackIso(
+                    extractPath,
+                    repacked,
+                    "MYGAME",
+                    (current, total, file) =>
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (current % 50 == 0 || current == total)
+                            {
+                                TextProjectLog.AppendText($"Packing ({current}/{total})...\n");
+                                TextProjectLog.ScrollToEnd();
+                            }
+                        });
+                    });
+
+                TextProjectLog.AppendText($"✅ Repacked to: {repacked}\n");
+                ErrorHandler.ShowInfo($"Successfully repacked ISO to:\n{repacked}", "Repack Complete");
             }
             catch (Exception ex)
             {
-                TextProjectLog.AppendText($"Error: {ex.Message}\n");
+                ErrorHandler.HandleFileError("create", "ISO file", ex);
+                TextProjectLog.AppendText($"❌ Error: {ex.Message}\n");
+            }
+            finally
+            {
+                BtnRepackIso.IsEnabled = true;
             }
         }
 
@@ -812,34 +857,4 @@ namespace GameTranslationTool
         }
 
     }
-}
-
-
-public class TranslationEntry : INotifyPropertyChanged
-{
-    private string _original = string.Empty;
-    private string _translated = string.Empty;
-    private string _error = string.Empty;
-
-    public string Original
-    {
-        get => _original;
-        set { _original = value; OnPropertyChanged(); }
-    }
-
-    public string Translated
-    {
-        get => _translated;
-        set { _translated = value; OnPropertyChanged(); }
-    }
-
-    public string Error
-    {
-        get => _error;
-        set { _error = value; OnPropertyChanged(); }
-    }
-
-    public event PropertyChangedEventHandler PropertyChanged;
-    private void OnPropertyChanged([CallerMemberName] string propName = null)
-        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propName));
 }

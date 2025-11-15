@@ -5,7 +5,6 @@ using System.Diagnostics;
 using Serilog;
 using DiscUtils.Iso9660;
 using GameTranslationTool.Utils;
-using GameTranslationTool.Translation;
 
 namespace GameTranslationTool.ISO
 {
@@ -15,9 +14,18 @@ namespace GameTranslationTool.ISO
         private static readonly ILogger Log = Serilog.Log.ForContext(typeof(IsoExtractor));
 
         /// <summary>
-        /// Extracts an ISO to disk, logs translatable files, and opens the log in Notepad.
+        /// Progress callback for extraction operations
         /// </summary>
-        public static void ExtractIso(string isoPath, string outputFolder, string translatedFolder)
+        public delegate void ProgressCallback(int current, int total, string currentFile);
+
+        /// <summary>
+        /// Extracts an ISO to disk with optional progress reporting
+        /// </summary>
+        public static void ExtractIso(
+            string isoPath,
+            string outputFolder,
+            string translatedFolder,
+            ProgressCallback? progressCallback = null)
         {
             if (!File.Exists(isoPath))
             {
@@ -30,10 +38,22 @@ namespace GameTranslationTool.ISO
             using var isoStream = File.OpenRead(isoPath);
             var cdReader = new CDReader(isoStream, true);
 
-            var translatableFiles = new List<string>();
-            ExtractDirectory(cdReader, @"\", outputFolder, translatedFolder, translatableFiles);
+            // First pass: count total files
+            int totalFiles = CountFiles(cdReader, @"\");
+            int processedFiles = 0;
 
-            Log.Information("Finished extracting all files to {Folder}", outputFolder);
+            var translatableFiles = new List<string>();
+            ExtractDirectory(
+                cdReader,
+                @"\",
+                outputFolder,
+                translatedFolder,
+                translatableFiles,
+                ref processedFiles,
+                totalFiles,
+                progressCallback);
+
+            Log.Information("Finished extracting {Count} files to {Folder}", processedFiles, outputFolder);
 
             string logFilePath = Path.Combine(outputFolder, "TranslatableFiles.txt");
             File.WriteAllLines(logFilePath, translatableFiles);
@@ -56,14 +76,34 @@ namespace GameTranslationTool.ISO
         }
 
         /// <summary>
-        /// Recursively extracts files and logs/copies those that are translatable.
+        /// Counts total files in the ISO for progress reporting
+        /// </summary>
+        private static int CountFiles(CDReader cdReader, string sourcePath)
+        {
+            int count = 0;
+
+            count += cdReader.GetFiles(sourcePath).Length;
+
+            foreach (var dir in cdReader.GetDirectories(sourcePath))
+            {
+                count += CountFiles(cdReader, dir);
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        /// Recursively extracts files and logs those that are translatable
         /// </summary>
         private static void ExtractDirectory(
             CDReader cdReader,
             string sourcePath,
             string outputFolder,
             string translatedRoot,
-            List<string> translatableFiles)
+            List<string> translatableFiles,
+            ref int processedFiles,
+            int totalFiles,
+            ProgressCallback? progressCallback)
         {
             foreach (var file in cdReader.GetFiles(sourcePath))
             {
@@ -77,6 +117,9 @@ namespace GameTranslationTool.ISO
                 using var dst = File.Create(destPath);
                 src.CopyTo(dst);
 
+                processedFiles++;
+                progressCallback?.Invoke(processedFiles, totalFiles, relativePath);
+
                 Log.Debug("Extracted file: {Path}", destPath);
 
                 if (FileHelpers.IsTranslatableFile(destPath))
@@ -84,19 +127,22 @@ namespace GameTranslationTool.ISO
                     translatableFiles.Add(relativePath);
                     Log.Information("Detected translatable file: {Path}", relativePath);
 
-                    string translatedPath = Path.Combine(translatedRoot, relativePath);
-                    string? tdir = Path.GetDirectoryName(translatedPath);
-                    if (!string.IsNullOrEmpty(tdir))
-                        Directory.CreateDirectory(tdir);
-
-                    Translator.TranslateFile(destPath, translatedPath);
-                    Log.Debug("Created translated placeholder: {Path}", translatedPath);
+                    // Note: Removed automatic translation - should be done manually
+                    // to avoid accidental translations during extraction
                 }
             }
 
             foreach (var dir in cdReader.GetDirectories(sourcePath))
             {
-                ExtractDirectory(cdReader, dir, outputFolder, translatedRoot, translatableFiles);
+                ExtractDirectory(
+                    cdReader,
+                    dir,
+                    outputFolder,
+                    translatedRoot,
+                    translatableFiles,
+                    ref processedFiles,
+                    totalFiles,
+                    progressCallback);
             }
         }
     }
