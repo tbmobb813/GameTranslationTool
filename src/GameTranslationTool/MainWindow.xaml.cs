@@ -27,10 +27,13 @@ namespace GameTranslationTool
 {
     public partial class MainWindow : Window
     {
-        // ─── Services ────────────────────────────────────────────────
+        // ─── Services (Injected via DI) ──────────────────────────────
         private readonly ISettingsService _settingsService;
         private readonly ICacheService _cacheService;
         private readonly RateLimiter _rateLimiter;
+        private readonly IIsoExtractor _isoExtractor;
+        private readonly IIsoRepacker _isoRepacker;
+        private readonly ILogger _logger;
 
         // ─── Fields ──────────────────────────────────────────────────
         private readonly ObservableCollection<DialogEntry> _dialogEntries = [];
@@ -42,14 +45,23 @@ namespace GameTranslationTool
         private ITranslator _translationEngine;
         private TranslationSettings _settings;
 
-        // ─── Constructor ────────────────────────────────────────────
+        // ─── Constructor (DI-enabled) ────────────────────────────────
 
-        public MainWindow()
+        public MainWindow(
+            ISettingsService settingsService,
+            ICacheService cacheService,
+            RateLimiter rateLimiter,
+            IIsoExtractor isoExtractor,
+            IIsoRepacker isoRepacker,
+            ILogger logger)
         {
-            // Initialize services
-            _settingsService = new SettingsService();
-            _cacheService = new CacheService();
-            _rateLimiter = new RateLimiter(maxRequestsPerMinute: 60);
+            // Store injected services
+            _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+            _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
+            _rateLimiter = rateLimiter ?? throw new ArgumentNullException(nameof(rateLimiter));
+            _isoExtractor = isoExtractor ?? throw new ArgumentNullException(nameof(isoExtractor));
+            _isoRepacker = isoRepacker ?? throw new ArgumentNullException(nameof(isoRepacker));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
             InitializeComponent();
 
@@ -682,25 +694,27 @@ namespace GameTranslationTool
                 _isoCts = new CancellationTokenSource();
                 var token = _isoCts.Token;
 
-                await IsoExtractor.ExtractIsoAsync(
+                var progress = new Progress<IsoProgress>(p =>
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        var progressValue = (int)p.Percentage;
+                        IsoProgressBar.Value = progressValue;
+                        IsoProgressLabel.Text = $"{progressValue}% ({p.Current}/{p.Total})";
+
+                        if (p.Current % 10 == 0 || p.Current == p.Total)
+                        {
+                            TextProjectLog.AppendText($"Extracting ({p.Current}/{p.Total}): {p.CurrentFile}\n");
+                            TextProjectLog.ScrollToEnd();
+                        }
+                    });
+                });
+
+                await _isoExtractor.ExtractAsync(
                     isoPath,
                     extractPath,
                     string.Empty,
-                    (current, total, file) =>
-                    {
-                        Dispatcher.Invoke(() =>
-                        {
-                            var progress = (int)((double)current / total * 100);
-                            IsoProgressBar.Value = progress;
-                            IsoProgressLabel.Text = $"{progress}% ({current}/{total})";
-
-                            if (current % 10 == 0 || current == total)
-                            {
-                                TextProjectLog.AppendText($"Extracting ({current}/{total}): {file}\n");
-                                TextProjectLog.ScrollToEnd();
-                            }
-                        });
-                    },
+                    progress,
                     token);
 
                 TextProjectLog.AppendText("✅ Extraction complete!\n");
@@ -768,25 +782,27 @@ namespace GameTranslationTool
                 _isoCts = new CancellationTokenSource();
                 var token = _isoCts.Token;
 
-                await IsoRepacker.RepackIsoAsync(
+                var progress = new Progress<IsoProgress>(p =>
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        var progressValue = (int)p.Percentage;
+                        IsoProgressBar.Value = progressValue;
+                        IsoProgressLabel.Text = $"{progressValue}% ({p.Current}/{p.Total})";
+
+                        if (p.Current % 50 == 0 || p.Current == p.Total)
+                        {
+                            TextProjectLog.AppendText($"Packing ({p.Current}/{p.Total})...\n");
+                            TextProjectLog.ScrollToEnd();
+                        }
+                    });
+                });
+
+                await _isoRepacker.RepackAsync(
                     extractPath,
                     repacked,
                     "MYGAME",
-                    (current, total, file) =>
-                    {
-                        Dispatcher.Invoke(() =>
-                        {
-                            var progress = (int)((double)current / total * 100);
-                            IsoProgressBar.Value = progress;
-                            IsoProgressLabel.Text = $"{progress}% ({current}/{total})";
-
-                            if (current % 50 == 0 || current == total)
-                            {
-                                TextProjectLog.AppendText($"Packing ({current}/{total})...\n");
-                                TextProjectLog.ScrollToEnd();
-                            }
-                        });
-                    },
+                    progress,
                     token);
 
                 TextProjectLog.AppendText($"✅ Repacked to: {repacked}\n");
@@ -838,7 +854,7 @@ namespace GameTranslationTool
                 TextTranslatedPath.Text = dlg.SelectedPath;
         }
 
-        private void BtnTranslate_Click(object sender, RoutedEventArgs e)
+        private async void BtnTranslate_Click(object sender, RoutedEventArgs e)
         {
             var root = TextExtractedPath.Text;
             var dest = TextTranslatedPath.Text;
@@ -850,11 +866,14 @@ namespace GameTranslationTool
             }
             try
             {
-                IsoExtractor.ExtractIso(root, dest, string.Empty);
+                // NOTE: This assumes 'root' is an ISO path, but the UI suggests it might be a directory.
+                // If this is meant to copy/translate files from one directory to another, this code needs refactoring.
+                await _isoExtractor.ExtractAsync(root, dest, string.Empty);
                 TextLog.AppendText("Translation complete.\n");
             }
             catch (Exception ex)
             {
+                _logger.Error(ex, "Translation/extraction failed");
                 TextLog.AppendText($"Error: {ex.Message}\n");
             }
         }
