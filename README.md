@@ -321,3 +321,152 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ---
 
 Made with ❤️ for game translation enthusiasts
+
+---
+
+## Python Translation Pipeline (v1)
+
+A modular, cross-platform command-line pipeline for extracting, translating, and patching game assets.
+
+### Pipeline Architecture
+
+```
+[Game Binary / Asset Bundle]
+           ↓
+ [Format Adapter Layer]
+   adapters/base.py        ← BaseAdapter + TextEntry
+   adapters/unity.py       ← Unity asset bundle handler
+           ↓
+ [Translation Engine]
+   core/translator.py      ← DeepL / OpenAI / Ollama providers
+   core/text_graph.py      ← Text object DAG representation
+           ↓
+ [Patch Generator]
+   core/patcher.py         ← xdelta3 / IPS / BPS wrappers
+```
+
+### Python Project Structure
+
+```
+adapters/          # Plugin-based format handlers
+  __init__.py
+  base.py          # BaseAdapter interface + TextEntry dataclass
+  unity.py         # Unity asset bundle (.assets, .unity3d) handler
+
+core/              # Core pipeline logic
+  __init__.py
+  translator.py    # Multi-provider translation engine with glossary support
+  patcher.py       # Patch generation (xdelta3, IPS, BPS)
+  text_graph.py    # Directed-acyclic-graph text representation
+
+utils/             # Shared utilities
+  __init__.py
+  encoding.py      # Shift-JIS ↔ UTF-8 encoding helpers
+  validation.py    # Text overflow and control-code detection
+
+cli/               # Command-line interface
+  __init__.py
+  main.py          # gtool CLI entry point (Click-based)
+
+tests/             # Pytest test suite
+  test_adapters.py
+  test_translator.py
+  fixtures/        # Sample JSON text dumps for testing
+
+requirements.txt   # Python dependencies
+```
+
+### Quick Start (Python Pipeline)
+
+#### Prerequisites
+
+```bash
+pip install -r requirements.txt
+```
+
+#### Install as a command-line tool
+
+```bash
+pip install -e .
+```
+
+#### Example Workflow – Unity Game Translation
+
+```bash
+# 1. Extract text from a Unity asset bundle
+gtool extract resources.assets --adapter unity --output text_dump.json
+
+# 2. Translate extracted text with DeepL
+gtool translate text_dump.json \
+    --provider deepl \
+    --api-key $DEEPL_API_KEY \
+    --glossary terms.json
+
+# 3. Check for overflow / control-code issues
+gtool validate text_dump.json --report warnings.txt
+
+# 4. Rebuild the asset bundle with translations
+gtool rebuild resources.assets text_dump.json --output translated/
+
+# 5. Generate a binary patch
+gtool patch resources.assets translated/resources.assets \
+    --output game_english.xdelta
+```
+
+### Configuration
+
+Create a `.env` file (or set environment variables) for API keys:
+
+```
+GTOOL_API_KEY=your_deepl_or_openai_key_here
+```
+
+Create a `glossary.json` for game-specific terminology:
+
+```json
+{
+    "terms": {
+        "ポーション": "Potion",
+        "勇者": "Hero"
+    },
+    "preserve": [
+        "\\{[A-Z_]+\\}",
+        "\\\\n",
+        "\\x1B\\[[0-9;]+m"
+    ]
+}
+```
+
+### Translation Providers
+
+| Provider | Flag | Notes |
+|----------|------|-------|
+| DeepL    | `--provider deepl`  | Requires `--api-key` or `GTOOL_API_KEY` |
+| OpenAI   | `--provider openai` | Requires `--api-key` or `GTOOL_API_KEY` |
+| Ollama   | `--provider ollama` | Local model, no key required |
+
+### Adapter Development Guide
+
+Implement `BaseAdapter` from `adapters/base.py`:
+
+```python
+from adapters.base import BaseAdapter, TextEntry
+from typing import List
+
+class MyAdapter(BaseAdapter):
+    def detect(self, file_path: str) -> bool:
+        return file_path.endswith(".myformat")
+
+    def extract(self, file_path: str) -> List[TextEntry]:
+        ...
+
+    def rebuild(self, file_path: str, entries: List[TextEntry], output_path: str) -> bool:
+        ...
+```
+
+### Running Python Tests
+
+```bash
+pytest tests/ -v
+```
+

@@ -1,0 +1,23 @@
+[
+  {
+    "id": "scene_intro::dialogue_001",
+    "original": "こんにちは、{PLAYER_NAME}！\\nようこそ！",
+    "translated": "Hello, {PLAYER_NAME}!\\nWelcome!",
+    "context": {"speaker": "NPC_INN_KEEPER", "formality": "polite"},
+    "metadata": {"file_path": "resources.assets", "asset_path": "Assets/Text/Intro.txt", "field": "m_Script", "class": "TextAsset"}
+  },
+  {
+    "id": "scene_intro::dialogue_002",
+    "original": "ポーションを買いますか？",
+    "translated": "Would you like to buy a Potion?",
+    "context": {"speaker": "NPC_SHOP", "formality": "neutral"},
+    "metadata": {"file_path": "resources.assets", "asset_path": "Assets/Text/Shop.txt", "field": "m_Script", "class": "TextAsset"}
+  },
+  {
+    "id": "scene_battle::attack_msg",
+    "original": "勇者は攻撃した！\\n{ENEMY}は{DAMAGE}ダメージを受けた！",
+    "translated": "The Hero attacks!\\n{ENEMY} takes {DAMAGE} damage!",
+    "context": {},
+    "metadata": {"file_path": "resources.assets", "asset_path": "Assets/Text/Battle.txt", "field": "m_Script", "class": "TextAsset"}
+  }
+]
